@@ -1,0 +1,14 @@
+[project]
+name = "tcc-flower-app"
+version = "0.1.0"
+description = "Federated Learning with Drift Detection for TCC"
+authors = [{ name = "Seu Nome", email = "seu@email.com" }]
+readme = "README.md"
+requires-python = ">=3.8"
+
+[tool.flwr.app]
+publisher = "simple"
+
+[tool.flwr.app.components]
+serverapp = "app.server:run_server_flwr"
+clientapp = "app.client:client_fn"

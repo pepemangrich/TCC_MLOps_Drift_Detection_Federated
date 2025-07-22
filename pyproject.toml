@@ -1,0 +1,14 @@
+[project]
+name = "tcc-flower"
+version = "0.1.0"
+
+[tool.flwr.app]
+publisher = "tcc"
+
+[tool.flwr.app.components.clientapp]
+type = "client"
+entrypoint = "client:client_fn"
+
+[tool.flwr.app.components.serverapp]
+type = "simulation"
+entrypoint = "app:main"

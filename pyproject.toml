@@ -2,7 +2,7 @@
 name = "tcc-flower-app"
 version = "0.1.0"
 description = "Federated Learning with Drift Detection for TCC"
-authors = [{ name = "Seu Nome", email = "seu@email.com" }]
+authors = [{ name = "Pedro Mangrich", email = "pepemangrich@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.8"
 

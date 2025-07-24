@@ -5,6 +5,7 @@ from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 
 from pytorchexample.task import Net, get_weights, load_data, set_weights, test, train
+from pytorchexample.drift_detector import DriftDetector
 
 
 # Define Flower Client
@@ -16,6 +17,7 @@ class FlowerClient(NumPyClient):
         self.local_epochs = local_epochs
         self.lr = learning_rate
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.drift_detector = DriftDetector(num_classes=10, window_size=100, threshold=0.1)
 
     def fit(self, parameters, config):
         """Train the model with data of this client."""
@@ -34,7 +36,22 @@ class FlowerClient(NumPyClient):
         """Evaluate the model on the data this client has."""
         set_weights(self.net, parameters)
         loss, accuracy = test(self.net, self.valloader, self.device)
-        return loss, len(self.valloader.dataset), {"accuracy": accuracy}
+        self.net.eval()
+        pred_labels = []
+        with torch.no_grad():
+            for batch in self.valloader:
+                if isinstance(batch, dict) and "img" in batch:
+                    inputs = batch["img"].to(self.device)
+                else:
+                    print("[DEBUG] Tipo inesperado em inputs:", type(inputs))
+                    continue
+                outputs = self.net(inputs)
+                preds = torch.argmax(outputs, dim=1).cpu().numpy()
+                pred_labels.extend(preds)
+
+        self.drift_detector.update(pred_labels)
+        drift = self.drift_detector.detect_drift()
+        return loss, len(self.valloader.dataset), {"accuracy": accuracy, "drift": drift}
 
 
 def client_fn(context: Context):

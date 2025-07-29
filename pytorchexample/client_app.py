@@ -1,15 +1,15 @@
-"""pytorchexample: A Flower / PyTorch app."""
+# pytorchexample: A Flower / PyTorch app.
 
 import torch
-from flwr.client import ClientApp, NumPyClient
-from flwr.common import Context
+import flwr as fl
+from flwr.client import Client, ClientApp
+from flwr.common import Context, EvaluateIns, EvaluateRes, FitIns, FitRes, ndarrays_to_parameters, parameters_to_ndarrays, Code, Status
 
 from pytorchexample.task import Net, get_weights, load_data, set_weights, test, train
 from pytorchexample.drift_detector import DriftDetector
 
 
-# Define Flower Client
-class FlowerClient(NumPyClient):
+class FlowerClient(Client):
     def __init__(self, trainloader, valloader, local_epochs, learning_rate):
         self.net = Net()
         self.trainloader = trainloader
@@ -19,23 +19,28 @@ class FlowerClient(NumPyClient):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.drift_detector = DriftDetector(num_classes=10, window_size=100, threshold=0.1)
 
-    def fit(self, parameters, config):
-        """Train the model with data of this client."""
-        set_weights(self.net, parameters)
-        results = train(
-            self.net,
-            self.trainloader,
-            self.valloader,
-            self.local_epochs,
-            self.lr,
-            self.device,
-        )
-        return get_weights(self.net), len(self.trainloader.dataset), results
+    def get_parameters(self):
+        return get_weights(self.net)
 
-    def evaluate(self, parameters, config):
-        """Evaluate the model on the data this client has."""
+    def set_parameters(self, parameters):
         set_weights(self.net, parameters)
+
+    def fit(self, ins: FitIns) -> FitRes:
+        self.set_parameters(parameters_to_ndarrays(ins.parameters))
+        results = train(self.net, self.trainloader, self.valloader, self.local_epochs, self.lr, self.device)
+
+        return FitRes(
+            status=Status(code=Code.OK, message="Success"),
+            parameters=ndarrays_to_parameters(get_weights(self.net)),
+            num_examples=len(self.trainloader.dataset),
+            metrics=results,
+        )
+
+    def evaluate(self, ins: EvaluateIns) -> EvaluateRes:
+        self.set_parameters(parameters_to_ndarrays(ins.parameters))
         loss, accuracy = test(self.net, self.valloader, self.device)
+
+        # Drift detection
         self.net.eval()
         pred_labels = []
         with torch.no_grad():
@@ -43,7 +48,6 @@ class FlowerClient(NumPyClient):
                 if isinstance(batch, dict) and "img" in batch:
                     inputs = batch["img"].to(self.device)
                 else:
-                    print("[DEBUG] Tipo inesperado em inputs:", type(inputs))
                     continue
                 outputs = self.net(inputs)
                 preds = torch.argmax(outputs, dim=1).cpu().numpy()
@@ -51,25 +55,30 @@ class FlowerClient(NumPyClient):
 
         self.drift_detector.update(pred_labels)
         drift = self.drift_detector.detect_drift()
-        return loss, len(self.valloader.dataset), {"accuracy": accuracy, "drift": drift}
+
+        print(f"[CLIENT] Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
+        print(f"[CLIENT] Drift detected? {drift}")
+
+        return EvaluateRes(
+            status=Status(code=Code.OK, message="Success"),
+            loss=float(loss),
+            num_examples=len(self.valloader.dataset),
+            metrics={
+                "accuracy": float(accuracy),
+                "drift": bool(drift),
+            },
+        )
 
 
 def client_fn(context: Context):
-    """Construct a Client that will be run in a ClientApp."""
-
-    # Read the node_config to fetch data partition associated to this node
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
-
-    # Read run_config to fetch hyperparameters relevant to this run
     batch_size = context.run_config["batch-size"]
     trainloader, valloader = load_data(partition_id, num_partitions, batch_size)
     local_epochs = context.run_config["local-epochs"]
     learning_rate = context.run_config["learning-rate"]
 
-    # Return Client instance
-    return FlowerClient(trainloader, valloader, local_epochs, learning_rate).to_client()
+    return FlowerClient(trainloader, valloader, local_epochs, learning_rate)
 
 
-# Flower ClientApp
 app = ClientApp(client_fn)

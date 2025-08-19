@@ -1,0 +1,5 @@
+{"round": 1, "global_accuracy": 0.2322, "num_clients": 10, "clients_with_drift": "2057430747338614609"}
+{"round": 2, "global_accuracy": 0.3136, "num_clients": 10, "clients_with_drift": ""}
+{"round": 3, "global_accuracy": 0.3759, "num_clients": 10, "clients_with_drift": ""}
+{"round": 4, "global_accuracy": 0.4073, "num_clients": 10, "clients_with_drift": ""}
+{"round": 5, "global_accuracy": 0.4392, "num_clients": 10, "clients_with_drift": ""}

@@ -1,0 +1,5 @@
+{"round": 1, "global_accuracy": 0.15252373813093453, "num_clients": 10, "clients_with_drift": "11503899704992018176"}
+{"round": 2, "global_accuracy": 0.20579710144927535, "num_clients": 10, "clients_with_drift": "11503899704992018176"}
+{"round": 3, "global_accuracy": 0.3148425787106447, "num_clients": 10, "clients_with_drift": ""}
+{"round": 4, "global_accuracy": 0.34132933533233384, "num_clients": 10, "clients_with_drift": "11503899704992018176"}
+{"round": 5, "global_accuracy": 0.3852073963018491, "num_clients": 10, "clients_with_drift": "11503899704992018176"}

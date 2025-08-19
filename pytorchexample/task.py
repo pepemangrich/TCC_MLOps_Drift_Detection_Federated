@@ -2,6 +2,8 @@
 
 from collections import OrderedDict
 
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -54,38 +56,39 @@ _PARTITIONER_CACHE = None
 
 
 def load_data(partition_id: int, num_partitions: int, batch_size: int):
-    """Load partition CIFAR10 data."""
-    # Only initialize `FederatedDataset` once
-    global fds
+    """Load partition CIFAR10 data (IID por default; Dirichlet se NON_IID_ALPHA>0)."""
+    global fds, _PARTITIONER_CACHE
     if fds is None:
-        partitioner = IidPartitioner(num_partitions=num_partitions)
+        alpha = float(os.getenv("NON_IID_ALPHA", "0.0"))
+        if alpha > 0.0 and _HAS_DIRICHLET:
+            partitioner = DirichletPartitioner(num_partitions=num_partitions, alpha=alpha, partition_by="label")
+            print(f"[DATA] Usando DirichletPartitioner(alpha={alpha})")
+        else:
+            partitioner = IidPartitioner(num_partitions=num_partitions)
+            if alpha > 0.0 and not _HAS_DIRICHLET:
+                print("[DATA] NON_IID_ALPHA>0 mas DirichletPartitioner indisponível; caindo para IID.")
+        _PARTITIONER_CACHE = partitioner
+
         fds = FederatedDataset(
             dataset="uoft-cs/cifar10",
             partitioners={"train": partitioner},
         )
 
-    # Garante que o índice esteja em faixa válida
     if num_partitions <= 0:
         num_partitions = 1
     partition_id = int(partition_id) % num_partitions
 
     partition = fds.load_partition(partition_id)
-    # Divide data on each node: 80% train, 20% test
     partition_train_test = partition.train_test_split(test_size=0.2, seed=42)
-    pytorch_transforms = Compose(
-        [ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-    )
+    pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
     def apply_transforms(batch):
-        """Apply transforms to the partition from FederatedDataset."""
         batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
         return batch
 
     partition_train_test = partition_train_test.with_transform(apply_transforms)
-    trainloader = DataLoader(
-        partition_train_test["train"], batch_size=batch_size, shuffle=True
-    )
-    testloader = DataLoader(partition_train_test["test"], batch_size=batch_size)
+    trainloader = DataLoader(partition_train_test["train"], batch_size=batch_size, shuffle=True)
+    testloader  = DataLoader(partition_train_test["test"],  batch_size=batch_size)
     return trainloader, testloader
 
 

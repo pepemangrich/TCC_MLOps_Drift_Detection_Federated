@@ -1,14 +1,24 @@
 # pytorchexample: A Flower / PyTorch app.
 
 import os
+import json
+import csv
 import torch
 from typing import List, Tuple, Optional, Dict, Set
 
-from flwr.common import Context, Metrics, Parameters, Scalar, ndarrays_to_parameters, parameters_to_ndarrays, EvaluateRes, FitRes
+from flwr.common import (
+    Context,
+    Metrics,
+    Parameters,
+    Scalar,
+    ndarrays_to_parameters,
+    parameters_to_ndarrays,
+    EvaluateRes,
+    FitRes,
+)
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg
-from flwr.server.client_manager import ClientManager
 
 from pytorchexample.task import Net, get_weights
 
@@ -36,6 +46,17 @@ class DriftAwareStrategy(FedAvg):
         super().__init__(**kwargs)
         self.clients_with_drift_last_round: Set[str] = set()
 
+        # Logs estruturados
+        os.makedirs("logs", exist_ok=True)
+        self._csv_path = os.path.join("logs", "round_metrics.csv")
+        self._jsonl_path = os.path.join("logs", "round_metrics.jsonl")
+        if not os.path.exists(self._csv_path):
+            with open(self._csv_path, "w", newline="") as f:
+                writer = csv.DictWriter(
+                    f, fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift"]
+                )
+                writer.writeheader()
+
     def aggregate_evaluate(
         self,
         server_round: int,
@@ -44,13 +65,37 @@ class DriftAwareStrategy(FedAvg):
     ) -> Optional[float]:
         self.clients_with_drift_last_round.clear()
 
+        # Calcula acurácia global ponderada e coleta clientes com drift
+        weighted_acc_sum = 0.0
+        weighted_n_sum = 0
         for client_proxy, evaluate_res in results:
             cid = client_proxy.cid
             drift_detected = evaluate_res.metrics.get("drift", False)
             if drift_detected:
                 self.clients_with_drift_last_round.add(cid)
 
-        print(f"[SERVER] Round {server_round}: Clientes com drift = {sorted(self.clients_with_drift_last_round)}")
+            acc = float(evaluate_res.metrics.get("accuracy", 0.0))
+            n = int(evaluate_res.num_examples)
+            weighted_acc_sum += acc * n
+            weighted_n_sum += n
+
+        global_acc = (weighted_acc_sum / weighted_n_sum) if weighted_n_sum > 0 else 0.0
+        clients_sorted = sorted(self.clients_with_drift_last_round)
+        print(f"[SERVER] Round {server_round}: GlobalAcc={global_acc:.4f} | Drift clients = {clients_sorted}")
+
+        # Persiste CSV/JSONL
+        row = {
+            "round": server_round,
+            "global_accuracy": global_acc,
+            "num_clients": len(results),
+            "clients_with_drift": ";".join(clients_sorted),
+        }
+        with open(self._csv_path, "a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift"])
+            writer.writerow(row)
+        with open(self._jsonl_path, "a") as f:
+            f.write(json.dumps(row) + "\n")
+
         return super().aggregate_evaluate(server_round, results, failures)
 
     def aggregate_fit(
@@ -59,6 +104,7 @@ class DriftAwareStrategy(FedAvg):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
     ) -> Optional[Parameters]:
+        # Salva pesos apenas dos clientes com drift
         for client_proxy, fit_res in results:
             cid = client_proxy.cid
             if cid in self.clients_with_drift_last_round:

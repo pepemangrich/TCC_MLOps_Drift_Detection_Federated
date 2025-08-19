@@ -7,6 +7,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
+try:
+    # Disponível em versões mais novas do flwr-datasets
+    from flwr_datasets.partitioner import DirichletPartitioner
+    _HAS_DIRICHLET = True
+except Exception:
+    _HAS_DIRICHLET = False
+
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Normalize, ToTensor
 
@@ -43,6 +50,7 @@ def set_weights(net, parameters):
 
 
 fds = None  # Cache FederatedDataset
+_PARTITIONER_CACHE = None
 
 
 def load_data(partition_id: int, num_partitions: int, batch_size: int):
@@ -55,6 +63,12 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int):
             dataset="uoft-cs/cifar10",
             partitioners={"train": partitioner},
         )
+
+    # Garante que o índice esteja em faixa válida
+    if num_partitions <= 0:
+        num_partitions = 1
+    partition_id = int(partition_id) % num_partitions
+
     partition = fds.load_partition(partition_id)
     # Divide data on each node: 80% train, 20% test
     partition_train_test = partition.train_test_split(test_size=0.2, seed=42)

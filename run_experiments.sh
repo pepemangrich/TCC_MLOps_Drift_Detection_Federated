@@ -33,6 +33,7 @@ run_one() {
 
   # Método de detecção
   export DRIFT_METHOD="$METHOD"
+
   # Threshold só faz sentido para entropy_fixed; limpe nos outros
   if [[ "$METHOD" == "entropy_fixed" ]]; then
     export DRIFT_THRESHOLD="${THRESH:-0.02}"
@@ -40,13 +41,19 @@ run_one() {
     unset DRIFT_THRESHOLD
   fi
 
+  # Dependência opcional para KSWIN/ADWIN
   if [[ "$METHOD" == "kswin" || "$METHOD" == "adwin" ]]; then
-    python -c "import importlib.util; import sys; sys.exit(0 if importlib.util.find_spec('river') else 1)" \
-      || pip install -q river
+    python - <<'PY'
+import importlib.util, sys
+sys.exit(0 if importlib.util.find_spec("river") else 1)
+PY
+    if [[ $? -ne 0 ]]; then
+      pip install -q river
+    fi
   fi
 
   # Limpa logs da rodada anterior para não misturar
-  rm -f logs/round_metrics.csv logs/round_metrics.jsonl
+  rm -f logs/round_metrics.csv logs/round_metrics.jsonl logs/per_client_metrics.csv
 
   # Arquivo de log desta execução
   TS="$(date +"%Y%m%d_%H%M%S")"
@@ -60,20 +67,36 @@ run_one() {
   # Salva CSV/JSONL com rótulo do cenário em results/
   cp logs/round_metrics.csv   "results/round_metrics_${LABEL}.csv"
   cp logs/round_metrics.jsonl "results/round_metrics_${LABEL}.jsonl"
+  if [[ -f logs/per_client_metrics.csv ]]; then
+    cp logs/per_client_metrics.csv "results/per_client_metrics_${LABEL}.csv"
+  fi
 
   # Plota para este cenário em subpasta dedicada de results/
   mkdir -p "results/${LABEL}"
-  python plot_round_metrics.py --csv "results/round_metrics_${LABEL}.csv" --outdir "results/${LABEL}"
+  if [[ -f "results/per_client_metrics_${LABEL}.csv" ]]; then
+    python plot_round_metrics.py \
+      --csv "results/round_metrics_${LABEL}.csv" \
+      --per-client-csv "results/per_client_metrics_${LABEL}.csv" \
+      --outdir "results/${LABEL}"
+  else
+    python plot_round_metrics.py \
+      --csv "results/round_metrics_${LABEL}.csv" \
+      --outdir "results/${LABEL}"
+  fi
 
   echo "✓ Resultado do cenário '${LABEL}' salvo em:"
   echo "  - LOG:   ${LOGFILE}"
   echo "  - CSV:   results/round_metrics_${LABEL}.csv"
   echo "  - JSONL: results/round_metrics_${LABEL}.jsonl"
-  echo "  - PNGs:  results/${LABEL}/global_accuracy.png, results/${LABEL}/drift_count.png"
+  if [[ -f "results/per_client_metrics_${LABEL}.csv" ]]; then
+    echo "  - CSV (per-client): results/per_client_metrics_${LABEL}.csv"
+    echo "  - PNGs per-client:  results/${LABEL}/per_client_mean_accuracy.png, results/${LABEL}/per_client_heatmap.png"
+  fi
+  echo "  - PNGs globais:     results/${LABEL}/global_accuracy.png, results/${LABEL}/drift_count.png"
 }
 
 # ========================
-# Execuções (6 cenários)
+# Execuções (8 cenários)
 # ========================
 
 # 1) IID + threshold fixo
@@ -85,6 +108,9 @@ run_one "IID_entropy_adaptive" "entropy_adaptive" "0.0"
 # 3) IID + KSWIN
 run_one "IID_kswin" "kswin" "0.0"
 
+# 3b) IID + ADWIN
+run_one "IID_adwin" "adwin" "0.0"
+
 # 4) não-IID + threshold fixo
 run_one "nonIID_entropy_fixed" "entropy_fixed" "0.3" "0.02"
 
@@ -93,6 +119,18 @@ run_one "nonIID_entropy_adaptive" "entropy_adaptive" "0.3"
 
 # 6) não-IID + ADWIN
 run_one "nonIID_adwin" "adwin" "0.3"
+
+# 6b) não-IID + KSWIN
+run_one "nonIID_kswin" "kswin" "0.3"
+
+# --- Smoke test opcional (rápido) para validar pipeline ---
+# Descomente se quiser um sanity check com drift sintético
+# ROUNDS_BAK="$ROUNDS"
+# export SMOKE_DRIFT=1
+# ROUNDS=2
+# run_one "SMOKE_entropy_adaptive" "entropy_adaptive" "0.0"
+# export SMOKE_DRIFT=0
+# ROUNDS="$ROUNDS_BAK"
 
 echo
 echo "=== Experimentos concluídos! ==="

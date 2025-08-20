@@ -89,18 +89,18 @@ class DriftDetector:
                     % self.method
                 )
             if self.method == "kswin":
-                # Permitir override opcional do stat_size via ambiente
-                # para evitar "stat_size must be smaller than window_size"
+                # Permite override via ambiente, mas sempre respeita a restrição:
+                # stat_size ≤ floor(window_size/2)
                 env_stat = os.getenv("DRIFT_KSWIN_STAT")
                 try:
                     stat_size = int(env_stat) if env_stat is not None else 30
                 except ValueError:
                     stat_size = 30
 
-                # Garante: stat_size < window_size
-                # (usa pelo menos 5 e no máx. 30, respeitando a janela atual - 1)
-                stat_size = max(5, min(30, self.window_size - 1))
+                max_allowed = max(2, self.window_size // 2)  # floor(window/2), mínimo 2
+                stat_size = max(2, min(stat_size, max_allowed))
 
+                # Observação: se quiser ver mais/menos sensibilidade, aumente/diminua window_size.
                 self._river = KSWIN(alpha=0.005, window_size=self.window_size, stat_size=stat_size)
             else:
                 # ADWIN: não precisa de janela fixa

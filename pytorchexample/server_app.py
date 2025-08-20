@@ -42,18 +42,34 @@ def save_client_weights(parameters: Parameters, cid: str, round_number: int):
 
 
 class DriftAwareStrategy(FedAvg):
-    def __init__(self, **kwargs):
+    def __init__(self, *, run_config: Dict, env_snapshot: Dict[str, str] | None = None, **kwargs):
         super().__init__(**kwargs)
         self.clients_with_drift_last_round: Set[str] = set()
+
+        # Guarda config/snapshot para log
+        self._run_config = dict(run_config) if run_config is not None else {}
+        self._env_snapshot = dict(env_snapshot or {})
 
         # Logs estruturados
         os.makedirs("logs", exist_ok=True)
         self._csv_path = os.path.join("logs", "round_metrics.csv")
         self._jsonl_path = os.path.join("logs", "round_metrics.jsonl")
+        self._per_client_csv = os.path.join("logs", "per_client_metrics.csv")
+
+        # Cabeçalho dos CSVs (se ainda não existirem)
         if not os.path.exists(self._csv_path):
             with open(self._csv_path, "w", newline="") as f:
                 writer = csv.DictWriter(
-                    f, fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift"]
+                    f,
+                    fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift"],
+                )
+                writer.writeheader()
+
+        if not os.path.exists(self._per_client_csv):
+            with open(self._per_client_csv, "w", newline="") as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=["round", "cid", "accuracy", "num_examples", "drift"],
                 )
                 writer.writeheader()
 
@@ -65,17 +81,30 @@ class DriftAwareStrategy(FedAvg):
     ) -> Optional[float]:
         self.clients_with_drift_last_round.clear()
 
-        # Calcula acurácia global ponderada e coleta clientes com drift
+        # --- coleta por-cliente e globais ---
+        per_client_rows = []
         weighted_acc_sum = 0.0
         weighted_n_sum = 0
+
         for client_proxy, evaluate_res in results:
             cid = client_proxy.cid
-            drift_detected = evaluate_res.metrics.get("drift", False)
+            acc = float(evaluate_res.metrics.get("accuracy", 0.0))
+            n = int(evaluate_res.num_examples)
+            drift_detected = bool(evaluate_res.metrics.get("drift", False))
+
             if drift_detected:
                 self.clients_with_drift_last_round.add(cid)
 
-            acc = float(evaluate_res.metrics.get("accuracy", 0.0))
-            n = int(evaluate_res.num_examples)
+            per_client_rows.append(
+                {
+                    "round": server_round,
+                    "cid": cid,
+                    "accuracy": acc,
+                    "num_examples": n,
+                    "drift": drift_detected,
+                }
+            )
+
             weighted_acc_sum += acc * n
             weighted_n_sum += n
 
@@ -83,18 +112,43 @@ class DriftAwareStrategy(FedAvg):
         clients_sorted = sorted(self.clients_with_drift_last_round)
         print(f"[SERVER] Round {server_round}: GlobalAcc={global_acc:.4f} | Drift clients = {clients_sorted}")
 
-        # Persiste CSV/JSONL
-        row = {
+        # --- CSV global (já existente) ---
+        row_global = {
             "round": server_round,
             "global_accuracy": global_acc,
             "num_clients": len(results),
             "clients_with_drift": ";".join(clients_sorted),
         }
         with open(self._csv_path, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift"])
-            writer.writerow(row)
+            writer = csv.DictWriter(
+                f, fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift"]
+            )
+            writer.writerow(row_global)
+
+        # --- CSV por-cliente (NOVO) ---
+        if per_client_rows:
+            with open(self._per_client_csv, "a", newline="") as f:
+                writer = csv.DictWriter(
+                    f, fieldnames=["round", "cid", "accuracy", "num_examples", "drift"]
+                )
+                writer.writerows(per_client_rows)
+
+        # --- JSONL da rodada com config e por-cliente (expandido) ---
+        jsonl_obj = {
+            "round": server_round,
+            "global": row_global,
+            "per_client": per_client_rows,        # lista de dicts por CID
+            "config": {
+                "run_config": self._run_config,   # ex.: num-server-rounds, fraction-evaluate etc
+                "env": self._env_snapshot,        # ex.: DRIFT_METHOD, DRIFT_WINDOW, NON_IID_ALPHA...
+            },
+        }
         with open(self._jsonl_path, "a") as f:
-            f.write(json.dumps(row) + "\n")
+            f.write(json.dumps(jsonl_obj) + "\n")
+
+        # --- JSON legível por rodada (opcional/útil) ---
+        with open(os.path.join("logs", f"round_{server_round}_config.json"), "w") as f:
+            json.dump(jsonl_obj["config"], f, indent=2, sort_keys=True)
 
         return super().aggregate_evaluate(server_round, results, failures)
 
@@ -104,20 +158,30 @@ class DriftAwareStrategy(FedAvg):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
     ) -> Optional[Parameters]:
-        # Salva pesos apenas dos clientes com drift
+        # Salva pesos apenas dos clientes com drift (seu comportamento atual)
         for client_proxy, fit_res in results:
             cid = client_proxy.cid
             if cid in self.clients_with_drift_last_round:
                 save_client_weights(fit_res.parameters, cid, server_round)
-
         return super().aggregate_fit(server_round, results, failures)
 
 
 def server_fn(context: Context):
+    # Snapshot de ambiente "relevante" para drift/dados
+    env_keys = [
+        "DRIFT_METHOD", "DRIFT_WINDOW", "DRIFT_THRESHOLD", "DRIFT_DEBUG", "DRIFT_KSWIN_STAT",
+        "NON_IID_ALPHA", "SMOKE_DRIFT",
+        # abaixo normalmente são por-cliente, mas guardamos aqui se estiverem setados globalmente
+        "PARTITION_ID", "NUM_PARTITIONS",
+    ]
+    env_snapshot = {k: os.getenv(k) for k in env_keys if os.getenv(k) is not None}
+
     num_rounds = context.run_config["num-server-rounds"]
     initial_params = ndarrays_to_parameters(get_weights(Net()))
 
     strategy = DriftAwareStrategy(
+        run_config=dict(context.run_config),           # salva configuração da execução
+        env_snapshot=env_snapshot,                    # e algumas variáveis de ambiente
         fraction_fit=1.0,
         fraction_evaluate=context.run_config["fraction-evaluate"],
         min_available_clients=2,

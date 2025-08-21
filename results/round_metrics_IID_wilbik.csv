@@ -1,0 +1,6 @@
+round,global_accuracy,num_clients,clients_with_drift,label
+1,0.2005,10,,IID_wilbik
+2,0.2896,10,,IID_wilbik
+3,0.3481,10,GLOBAL,IID_wilbik
+4,0.3794,10,GLOBAL,IID_wilbik
+5,0.4065,10,GLOBAL,IID_wilbik

@@ -1,6 +1,6 @@
-round,global_accuracy,num_clients,clients_with_drift
-1,0.1882,10,
-2,0.2624,10,
-3,0.3317,10,
-4,0.3706,10,
-5,0.4195,10,
+round,global_accuracy,num_clients,clients_with_drift,label
+1,0.1089,10,,IID_entropy_adaptive
+2,0.2036,10,,IID_entropy_adaptive
+3,0.2915,10,,IID_entropy_adaptive
+4,0.3501,10,,IID_entropy_adaptive
+5,0.3943,10,,IID_entropy_adaptive

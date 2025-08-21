@@ -1,0 +1,128 @@
+Loading project configuration... 
+Success
+[92mINFO [0m:      Starting Flower ServerApp, config: num_rounds=5, no round_timeout
+[92mINFO [0m:      
+[92mINFO [0m:      [INIT]
+[92mINFO [0m:      Using initial global parameters provided by strategy
+[92mINFO [0m:      Starting evaluation of initial global parameters
+[92mINFO [0m:      Evaluation returned no results (`None`)
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 1]
+[92mINFO [0m:      configure_fit: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_fit: received 10 results and 0 failures
+[93mWARNING [0m:   No fit_metrics_aggregation_fn provided
+[92mINFO [0m:      configure_evaluate: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_evaluate: received 10 results and 0 failures
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 2]
+[92mINFO [0m:      configure_fit: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_fit: received 10 results and 0 failures
+[92mINFO [0m:      configure_evaluate: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_evaluate: received 10 results and 0 failures
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 3]
+[92mINFO [0m:      configure_fit: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_fit: received 10 results and 0 failures
+[92mINFO [0m:      configure_evaluate: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_evaluate: received 10 results and 0 failures
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 4]
+[92mINFO [0m:      configure_fit: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_fit: received 10 results and 0 failures
+[92mINFO [0m:      configure_evaluate: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_evaluate: received 10 results and 0 failures
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 5]
+[92mINFO [0m:      configure_fit: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_fit: received 10 results and 0 failures
+[92mINFO [0m:      configure_evaluate: strategy sampled 10 clients (out of 10)
+[92mINFO [0m:      aggregate_evaluate: received 10 results and 0 failures
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=3 num_partitions=10
+[36m(ClientAppActor pid=22114)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 8x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(ClientAppActor pid=22112)[0m [CLIENT] Loss: 2.1349, Accuracy: 0.2430
+[36m(ClientAppActor pid=22112)[0m [CLIENT] Drift detected? True
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 10x across cluster][0m
+[SERVER] Round 1: GlobalAcc=0.2382 | Drift clients = 10260545904023995825;10981340529864736220;11712441211371132933;15072697119482821416;16103813087167264507;17662024222499876865;2960276532189306276;3697429367492572166;5032336586354105895;6506889501066305439
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Loss: 2.1359, Accuracy: 0.2260[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Drift detected? True[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22113)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 10x across cluster][0m
+[SERVER] Pesos salvos em: saved_weights/round_2/client_17662024222499876865.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_15072697119482821416.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_16103813087167264507.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_10981340529864736220.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_2960276532189306276.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_11712441211371132933.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_6506889501066305439.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_3697429367492572166.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_10260545904023995825.pt
+[SERVER] Pesos salvos em: saved_weights/round_2/client_5032336586354105895.pt
+[36m(ClientAppActor pid=22112)[0m [CLIENT] Loss: 1.9288, Accuracy: 0.2850
+[36m(ClientAppActor pid=22112)[0m [CLIENT] Drift detected? True
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Drift detected? False
+[36m(ClientAppActor pid=22114)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=6 num_partitions=10[32m [repeated 9x across cluster][0m
+[SERVER] Round 2: GlobalAcc=0.3035 | Drift clients = 10260545904023995825;11712441211371132933;15072697119482821416;16103813087167264507;17662024222499876865;2960276532189306276;3697429367492572166;6506889501066305439
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Loss: 1.9013, Accuracy: 0.2860[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Drift detected? True[32m [repeated 7x across cluster][0m
+[36m(ClientAppActor pid=22113)[0m [CLIENT] Drift detected? False
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 11x across cluster][0m
+[SERVER] Pesos salvos em: saved_weights/round_3/client_15072697119482821416.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_16103813087167264507.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_6506889501066305439.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_3697429367492572166.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_17662024222499876865.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_10260545904023995825.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_2960276532189306276.pt
+[SERVER] Pesos salvos em: saved_weights/round_3/client_11712441211371132933.pt
+[36m(ClientAppActor pid=22112)[0m [CLIENT] Loss: 1.7697, Accuracy: 0.3460
+[36m(ClientAppActor pid=22112)[0m [CLIENT] Drift detected? True
+[36m(ClientAppActor pid=22113)[0m [CLIENT] Drift detected? False
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 10x across cluster][0m
+[36m(ClientAppActor pid=22113)[0m [CLIENT] Drift detected? False
+[SERVER] Round 3: GlobalAcc=0.3600 | Drift clients = 10260545904023995825;10981340529864736220;11712441211371132933;16103813087167264507;17662024222499876865;2960276532189306276;3697429367492572166;5032336586354105895
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Loss: 1.7653, Accuracy: 0.3720[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Drift detected? True[32m [repeated 7x across cluster][0m
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=7 num_partitions=10[32m [repeated 9x across cluster][0m
+[SERVER] Pesos salvos em: saved_weights/round_4/client_3697429367492572166.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_11712441211371132933.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_10981340529864736220.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_16103813087167264507.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_5032336586354105895.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_10260545904023995825.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_17662024222499876865.pt
+[SERVER] Pesos salvos em: saved_weights/round_4/client_2960276532189306276.pt
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=2 num_partitions=10[32m [repeated 3x across cluster][0m
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Loss: 1.6979, Accuracy: 0.3780
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Drift detected? True
+[36m(ClientAppActor pid=22113)[0m [CLIENT] Drift detected? False
+[SERVER] Round 4: GlobalAcc=0.3911 | Drift clients = 10260545904023995825;11712441211371132933;15072697119482821416;16103813087167264507;17662024222499876865;3697429367492572166;5032336586354105895;6506889501066305439
+[36m(ClientAppActor pid=22115)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=4 num_partitions=10[32m [repeated 14x across cluster][0m
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Loss: 1.6788, Accuracy: 0.3740[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Drift detected? True[32m [repeated 7x across cluster][0m
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Drift detected? False
+[SERVER] Pesos salvos em: saved_weights/round_5/client_17662024222499876865.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_11712441211371132933.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_3697429367492572166.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_16103813087167264507.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_5032336586354105895.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_10260545904023995825.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_15072697119482821416.pt
+[SERVER] Pesos salvos em: saved_weights/round_5/client_6506889501066305439.pt
+[36m(ClientAppActor pid=22112)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=3 num_partitions=10[32m [repeated 6x across cluster][0m
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Loss: 1.5748, Accuracy: 0.4310
+[36m(ClientAppActor pid=22115)[0m [CLIENT] Drift detected? True
+[92mINFO [0m:      
+[92mINFO [0m:      [SUMMARY]
+[92mINFO [0m:      Run finished 5 round(s) in 74.43s
+[92mINFO [0m:      	History (loss, distributed):
+[92mINFO [0m:      		round 1: 2.1227726500481365
+[92mINFO [0m:      		round 2: 1.9045432098209858
+[92mINFO [0m:      		round 3: 1.7636484500020742
+[92mINFO [0m:      		round 4: 1.6652387131005526
+[92mINFO [0m:      		round 5: 1.5699288327246905
+[92mINFO [0m:      	History (metrics, distributed, evaluate):
+[92mINFO [0m:      	{'accuracy': [(1, 0.2382), (2, 0.3035), (3, 0.36), (4, 0.3911), (5, 0.4252)]}
+[92mINFO [0m:      
+[SERVER] Round 5: GlobalAcc=0.4252 | Drift clients = 10260545904023995825;10981340529864736220;11712441211371132933;15072697119482821416;16103813087167264507;17662024222499876865;2960276532189306276;3697429367492572166;5032336586354105895;6506889501066305439
+[36m(ClientAppActor pid=22114)[0m [CLIENT] DriftDetector(method='entropy_fixed', window_size=20, threshold=0.0200) | SMOKE_DRIFT=False | partition_id=9 num_partitions=10[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Loss: 1.5892, Accuracy: 0.4330[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=22114)[0m [CLIENT] Drift detected? True[32m [repeated 9x across cluster][0m

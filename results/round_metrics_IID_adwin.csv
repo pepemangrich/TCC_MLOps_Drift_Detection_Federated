@@ -1,6 +1,0 @@
-round,global_accuracy,num_clients,clients_with_drift,label
-1,0.1745,10,,IID_adwin
-2,0.2862,10,,IID_adwin
-3,0.3451,10,,IID_adwin
-4,0.3793,10,,IID_adwin
-5,0.4142,10,,IID_adwin

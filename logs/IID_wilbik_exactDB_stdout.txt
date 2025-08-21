@@ -1,0 +1,28 @@
+Loading project configuration... 
+Success
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=1 num_partitions=10
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 8x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] Loss: 2.2697, Accuracy: 0.2080
+[SERVER] Round 1: GlobalAcc=0.2006 | Drift clients = 
+[36m(ClientAppActor pid=42846)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=4 num_partitions=10[32m [repeated 16x across cluster][0m
+[36m(ClientAppActor pid=42846)[0m [CLIENT] Loss: 2.2687, Accuracy: 0.2060[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=3 num_partitions=10[32m [repeated 6x across cluster][0m
+[36m(ClientAppActor pid=42844)[0m [CLIENT] Loss: 1.9247, Accuracy: 0.3030
+[SERVER] Round 2: GlobalAcc=0.3036 | Drift clients = 
+[36m(ClientAppActor pid=42844)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=4 num_partitions=10[32m [repeated 14x across cluster][0m
+[36m(ClientAppActor pid=42848)[0m [CLIENT] Loss: 1.9495, Accuracy: 0.3030[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=0 num_partitions=10[32m [repeated 6x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] Loss: 1.7255, Accuracy: 0.3840
+[SERVER] Round 3: GlobalAcc=0.3546 | Drift clients = 
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=7 num_partitions=10[32m [repeated 14x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] Loss: 1.7894, Accuracy: 0.3480[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=2 num_partitions=10[32m [repeated 6x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] Loss: 1.6321, Accuracy: 0.4250
+[SERVER] Round 4: GlobalAcc=0.3873 | Drift clients = 
+[36m(ClientAppActor pid=42844)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=4 num_partitions=10[32m [repeated 14x across cluster][0m
+[36m(ClientAppActor pid=42846)[0m [CLIENT] Loss: 1.6724, Accuracy: 0.3730[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=1 num_partitions=10[32m [repeated 6x across cluster][0m
+[36m(ClientAppActor pid=42847)[0m [CLIENT] Loss: 1.5812, Accuracy: 0.4030
+[SERVER] Round 5: GlobalAcc=0.4173 | Drift clients = 
+[36m(ClientAppActor pid=42844)[0m [CLIENT] DriftDetector(method='wilbik_federated', window_size=100) | SMOKE_DRIFT=False | partition_id=8 num_partitions=10[32m [repeated 9x across cluster][0m
+[36m(ClientAppActor pid=42844)[0m [CLIENT] Loss: 1.5912, Accuracy: 0.4130[32m [repeated 9x across cluster][0m

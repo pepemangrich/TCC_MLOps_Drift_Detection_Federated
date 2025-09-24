@@ -235,9 +235,9 @@ class FlowerClient(Client):
                         W = U ** m
                         # DB exato
                         A = U.sum(axis=0)                    # (K,)
-                        B = (dist ** q).sum(axis=0)          # (K,)
+                        B = (W * (dist ** q)).sum(axis=0)         # (K,)
                         # fallback métricas (mantidas por compatibilidade)
-                        sse = (W * dist).sum(axis=0)         # (K,)
+                        sse = (W * (dist ** 2)).sum(axis=0)         # (K,)
                         wsum = W.sum(axis=0)                 # (K,)
 
                         metrics["wf_N"] = int(X.shape[0])

@@ -4,23 +4,15 @@ set -euo pipefail
 # ============================================================
 # Execuções reprodutíveis com hiperparâmetros afinados por cenário
 # ============================================================
-# Perfis usados:
+# Perfis:
 #  - Entropy (fixo):      IID  -> W=100,  θ=0.10   | nonIID -> W=50,  θ=0.08
-#  - Entropy (adapt.):    IID  -> W=100,  k≈3.0    | nonIID -> W=75,  k≈2.5   (env ENTROPY_ADAPT_K)
+#  - Entropy (adapt.):    IID  -> W=100,  k≈3.0    | nonIID -> W=75,  k≈2.5   (ENTROPY_ADAPT_K)
 #  - KSWIN:               IID  -> n=200, r=50, α=0.01 | nonIID -> n=100, r=30, α=0.02
 #  - ADWIN:               IID  -> δ=0.002         | nonIID -> δ=0.006
-#  - Wilbik (federado):   IID  -> δ=0.20          | nonIID -> δ=0.25   (K=3, m=2.0, q=2.0, init=3, eps=1e-4)
-#
-# Observação: as variáveis de ambiente abaixo são lidas pelos seus apps/clients
-# (drift_detector.py / server_app.py). Se alguma não existir no seu código,
-# será simplesmente ignorada (não quebra).
+#  - Wilbik (federado):   IID  -> δ=0.20          | nonIID -> δ=0.25 (K=3, m=2.0, q=2.0, init=3, eps=1e-4)
 
-# Pastas
 mkdir -p logs results
 
-# ==========================
-# Limpeza da batelada anterior
-# ==========================
 echo "🧹 Limpando artefatos de execuções anteriores..."
 rm -f logs/*.txt logs/round_metrics.csv logs/round_metrics.jsonl logs/per_client_metrics.csv || true
 rm -f results/round_metrics_*.csv results/round_metrics_*.jsonl results/per_client_metrics_*.csv || true
@@ -31,28 +23,25 @@ find results -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || tr
 # ==========================
 export NUM_PARTITIONS=4
 export DRIFT_DEBUG=0
-export SMOKE_DRIFT=0              # sem drift sintético
+export SMOKE_DRIFT=0
 
-# Validade temporal/estatística
 ROUNDS=25
 BATCH=32
 LR=0.01
 EPOCHS=1
 
-# Repetições (seeds)
+# Seeds disponíveis (usaremos 11 para runs "single")
 SEEDS=(11 22 33)
-REPEATS="${#SEEDS[@]}"
 
 # ==========================
-# Funções auxiliares
+# Helpers
 # ==========================
-have_rows() {                     # 0 se CSV tem (header + ≥1 linha)
+have_rows() {  # retorna 0 (true) se CSV tem header + ≥1 linha
   local f="$1"
   [[ -f "$f" ]] && [[ "$(wc -l < "$f")" -gt 1 ]]
 }
 
 reset_detector_env() {
-  # Zera variáveis para evitar "vazar" de um cenário para outro
   unset DRIFT_WINDOW DRIFT_THRESHOLD ENTROPY_ADAPT_K
   unset DRIFT_KSWIN_STAT KSWIN_WINDOW KSWIN_ALPHA
   unset ADWIN_DELTA
@@ -61,7 +50,7 @@ reset_detector_env() {
 
 set_hparams() {
   local METHOD="$1"   # entropy_fixed | entropy_adaptive | kswin | adwin | wilbik_federated
-  local ALPHA="$2"    # "0.0" (IID) ou e.g. "0.3" (não-IID)
+  local ALPHA="$2"    # "0.0" (IID) ou "0.3" (nonIID)
   local REGIME="IID"; [[ "$ALPHA" != "0" && "$ALPHA" != "0.0" ]] && REGIME="nonIID"
 
   reset_detector_env
@@ -78,7 +67,6 @@ set_hparams() {
       ;;
 
     entropy_adaptive)
-      # Implementação típica: baseline + k*sigma (caso seu código use ENTROPY_ADAPT_K)
       if [[ "$REGIME" == "IID" ]]; then
         export DRIFT_WINDOW=100
         export ENTROPY_ADAPT_K=3.0
@@ -89,7 +77,6 @@ set_hparams() {
       ;;
 
     kswin)
-      # Mapeamento: DRIFT_WINDOW -> window_size (n), DRIFT_KSWIN_STAT -> stat_size (r), DRIFT_THRESHOLD -> alpha
       if [[ "$REGIME" == "IID" ]]; then
         export DRIFT_WINDOW=200
         export DRIFT_KSWIN_STAT=50
@@ -102,7 +89,6 @@ set_hparams() {
       ;;
 
     adwin)
-      # δ de ADWIN; DRIFT_WINDOW não é usado, mas não atrapalha
       if [[ "$REGIME" == "IID" ]]; then
         export ADWIN_DELTA=0.002
       else
@@ -111,7 +97,6 @@ set_hparams() {
       ;;
 
     wilbik_federated)
-      # Ajustes do capítulo; demais ficam fixos
       if [[ "$REGIME" == "IID" ]]; then
         export WILBIK_DELTA=0.20
       else
@@ -134,13 +119,19 @@ PY
   fi
 }
 
+# run_one BASE METHOD ALPHA [REPEATS_OVERRIDE]
 run_one() {
-  local BASE_LABEL="$1"     # ex: IID_adwin
-  local METHOD="$2"         # entropy_fixed | entropy_adaptive | kswin | adwin | wilbik_federated
-  local ALPHA="$3"          # 0.0 (IID) ou ex. 0.3 (não-IID)
+  local BASE_LABEL="$1"
+  local METHOD="$2"
+  local ALPHA="$3"
+  local REPEATS_OVERRIDE="${4:-1}"     # default: 1 execução
+  local REPEATS="$REPEATS_OVERRIDE"
 
   for ((r=0; r<REPEATS; r++)); do
-    local SEED="${SEEDS[$r]}"
+    # escolhe a seed r-esima; se passar do tamanho, usa a última
+    local SEED_INDEX=$(( r < ${#SEEDS[@]} ? r : ${#SEEDS[@]}-1 ))
+    local SEED="${SEEDS[$SEED_INDEX]}"
+
     local LABEL="${BASE_LABEL}_s${SEED}"
     local OUTDIR="results/${LABEL}"
     mkdir -p "${OUTDIR}"
@@ -148,41 +139,35 @@ run_one() {
     echo
     echo "=== [${LABEL}] DRIFT_METHOD=${METHOD} NON_IID_ALPHA=${ALPHA} ==="
 
-    # Cenário: IID vs não-IID
     if [[ "$ALPHA" == "0" || "$ALPHA" == "0.0" ]]; then
       unset NON_IID_ALPHA
     else
       export NON_IID_ALPHA="$ALPHA"
     fi
 
-    # Método e hiperparâmetros específicos
     export DRIFT_METHOD="$METHOD"
     set_hparams "$METHOD" "$ALPHA"
     ensure_river_if_needed "$METHOD"
 
-    # Limpa logs da rodada anterior
+    # ---- Overrides temporários para Wilbik (usados no cenário _nodrift) ----
+    [[ -n "${OVERRIDE_WILBIK_INIT_ITERS:-}" ]] && export WILBIK_INIT_ITERS="${OVERRIDE_WILBIK_INIT_ITERS}"
+    [[ -n "${OVERRIDE_WILBIK_DELTA:-}"       ]] && export WILBIK_DELTA="${OVERRIDE_WILBIK_DELTA}"
+    # ------------------------------------------------------------------------
+
     rm -f logs/round_metrics.csv logs/round_metrics.jsonl logs/per_client_metrics.csv
 
-    # Log desta execução
-    TS="$(date +"%Y%m%d_%H%M%S")"
-    LOGFILE="logs/${LABEL}_${TS}.txt"
+    local TS="$(date +"%Y%m%d_%H%M%S")"
+    local LOGFILE="logs/${LABEL}_${TS}.txt"
 
-    # Rótulo do cenário para o app
     export SCENARIO_LABEL="${LABEL}"
     export PYTHONHASHSEED="${SEED}"
 
-    # ==========================
-    # Execução
-    # ==========================
     flwr run . \
       -c "num-server-rounds=${ROUNDS} \
           fraction-evaluate=1.0 \
           batch-size=${BATCH} local-epochs=${EPOCHS} learning-rate=${LR}" \
       --stream > "${LOGFILE}" 2>&1
 
-    # ==========================
-    # Copia artefatos para a pasta do cenário
-    # ==========================
     if [[ -f logs/round_metrics.csv ]]; then
       cp logs/round_metrics.csv   "${OUTDIR}/round_metrics.csv"
     else
@@ -199,9 +184,6 @@ run_one() {
       cp logs/per_client_metrics.csv "${OUTDIR}/per_client_metrics.csv"
     fi
 
-    # ==========================
-    # Plota dentro da pasta do cenário
-    # ==========================
     if [[ -f "${OUTDIR}/round_metrics.csv" ]]; then
       if have_rows "${OUTDIR}/per_client_metrics.csv"; then
         python plot_round_metrics.py \
@@ -233,38 +215,41 @@ run_one() {
 }
 
 # ========================
-# Execuções (10 cenários) x repetições
+# Execuções
 # ========================
 
-# 1) IID + threshold fixo (mais estável)
-run_one "IID_entropy_fixed" "entropy_fixed" "0.0"
+# 1) IID + threshold fixo
+run_one "IID_entropy_fixed" "entropy_fixed" "0.0" 1
 
-# 2) IID + threshold adaptativo (média + kσ)
-run_one "IID_entropy_adaptive" "entropy_adaptive" "0.0"
+# 2) IID + threshold adaptativo
+run_one "IID_entropy_adaptive" "entropy_adaptive" "0.0" 1
 
 # 3) IID + KSWIN
-run_one "IID_kswin" "kswin" "0.0"
+run_one "IID_kswin" "kswin" "0.0" 1
 
 # 3b) IID + ADWIN
-run_one "IID_adwin" "adwin" "0.0"
+run_one "IID_adwin" "adwin" "0.0" 1
 
-# 3c) IID + Wilbik
-run_one "IID_wilbik" "wilbik_federated" "0.0"
+# 3c) IID + Wilbik  (ÚNICO com 3 seeds)
+run_one "IID_wilbik" "wilbik_federated" "0.0" 3
 
-# 4) não-IID + threshold fixo (mais sensível)
-run_one "nonIID_entropy_fixed" "entropy_fixed" "0.3"
+# 3d) IID + Wilbik (sem drift: baseline atrasado)
+OVERRIDE_WILBIK_INIT_ITERS=15 run_one "IID_wilbik_nodrift" "wilbik_federated" "0.0" 1
 
-# 5) não-IID + threshold adaptativo
-run_one "nonIID_entropy_adaptive" "entropy_adaptive" "0.3"
+# 4) non-IID + threshold fixo
+run_one "nonIID_entropy_fixed" "entropy_fixed" "0.3" 1
 
-# 6) não-IID + ADWIN
-run_one "nonIID_adwin" "adwin" "0.3"
+# 5) non-IID + threshold adaptativo
+run_one "nonIID_entropy_adaptive" "entropy_adaptive" "0.3" 1
 
-# 6b) não-IID + KSWIN
-run_one "nonIID_kswin" "kswin" "0.3"
+# 6) non-IID + ADWIN
+run_one "nonIID_adwin" "adwin" "0.3" 1
 
-# 6c) não-IID + Wilbik
-run_one "nonIID_wilbik" "wilbik_federated" "0.3"
+# 6b) non-IID + KSWIN
+run_one "nonIID_kswin" "kswin" "0.3" 1
+
+# 6c) non-IID + Wilbik
+run_one "nonIID_wilbik" "wilbik_federated" "0.3" 1
 
 echo
 echo "=== Experimentos concluídos! ==="

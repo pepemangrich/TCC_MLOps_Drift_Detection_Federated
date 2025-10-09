@@ -10,7 +10,6 @@ from flwr.common import (
     Context,
     Metrics,
     Parameters,
-    Scalar,
     ndarrays_to_parameters,
     parameters_to_ndarrays,
     EvaluateRes,
@@ -18,45 +17,60 @@ from flwr.common import (
     EvaluateIns,
 )
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
-    # fmt: off
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg
-    # fmt: on
 
 from pytorchexample.task import Net, get_weights
 
 import numpy as np
 
 
-def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
-    examples = [num_examples for num_examples, _ in metrics]
-    return {"accuracy": sum(accuracies) / sum(examples)}
+# -------------------------- Utils --------------------------
 
+def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
+    accuracies = [num_examples * m.get("accuracy", 0.0) for num_examples, m in metrics]
+    examples = [num_examples for num_examples, _ in metrics]
+    return {"accuracy": (sum(accuracies) / sum(examples)) if sum(examples) > 0 else 0.0}
 
 def save_client_weights(parameters: Parameters, cid: str, round_number: int):
     weights = parameters_to_ndarrays(parameters)
     state_dict = {f"param_{i}": torch.tensor(w) for i, w in enumerate(weights)}
-
     folder = f"saved_weights/round_{round_number}"
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, f"client_{cid}.pt")
-
     torch.save(state_dict, path)
     print(f"[SERVER] Pesos salvos em: {path}")
 
-
 def _to_py(obj):
-    """Converte recursivamente numpy types/arrays para tipos Python/JSON-friendly."""
+    """Converte numpy/containers para tipos JSON-friendly."""
     if isinstance(obj, dict):
         return {str(k): _to_py(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [_to_py(v) for v in obj]
     if isinstance(obj, np.ndarray):
         return obj.tolist()
-    if isinstance(obj, np.generic):  # numpy escalares (np.float64, np.int64, np.bool_, etc.)
+    if isinstance(obj, np.generic):
         return obj.item()
     return obj
+
+
+# -------------------------- Estratégia --------------------------
+
+ROUND_CSV_HEADER = [
+    "round",
+    "global_accuracy",
+    "num_clients",
+    "global_drift_flag",     # 0/1 (Wilbik/global)
+    "clients_with_drift",    # JSON list de CIDs (detectores locais). Para Wilbik: "[]"
+    "delta_t",               # só Wilbik
+    "delta_0",               # só Wilbik
+    "band_lo",               # só Wilbik
+    "band_hi",               # só Wilbik
+    "phase",                 # INIT/MONITOR
+    "label",
+]
+
+PER_CLIENT_HEADER = ["round", "cid", "accuracy", "num_examples", "drift", "label"]
 
 
 class DriftAwareStrategy(FedAvg):
@@ -73,7 +87,7 @@ class DriftAwareStrategy(FedAvg):
 
         # ----------------- Wilbik Federated -----------------
         self._wf_enabled: bool = (os.getenv("DRIFT_METHOD", "") == "wilbik_federated")
-        # Fases: init_centers -> init_delta0 -> delta
+        # Fases: init_centers -> init_delta0 -> delta (monitor)
         self._wf_state: Optional[str] = "init_centers" if self._wf_enabled else None
 
         self._wf_K: int = int(os.getenv("WILBIK_K", "3"))
@@ -92,18 +106,15 @@ class DriftAwareStrategy(FedAvg):
 
         self._scenario_label = os.getenv("SCENARIO_LABEL", "")
 
-        # Cabeçalhos (agora com drift_global)
+        # Cabeçalhos
         if not os.path.exists(self._csv_path):
             with open(self._csv_path, "w", newline="") as f:
-                csv.DictWriter(
-                    f,
-                    fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift", "drift_global", "label"],
-                ).writeheader()
+                csv.DictWriter(f, fieldnames=ROUND_CSV_HEADER).writeheader()
         if not os.path.exists(self._per_client_csv):
             with open(self._per_client_csv, "w", newline="") as f:
-                csv.DictWriter(
-                    f, fieldnames=["round", "cid", "accuracy", "num_examples", "drift", "label"]
-                ).writeheader()
+                csv.DictWriter(f, fieldnames=PER_CLIENT_HEADER).writeheader()
+
+    # -------------------------- Avaliação --------------------------
 
     def aggregate_evaluate(
         self,
@@ -129,9 +140,7 @@ class DriftAwareStrategy(FedAvg):
                 self.clients_with_drift_last_round.add(cid)
 
             with open(self._per_client_csv, "a", newline="") as f:
-                csv.DictWriter(
-                    f, fieldnames=["round", "cid", "accuracy", "num_examples", "drift", "label"]
-                ).writerow(
+                csv.DictWriter(f, fieldnames=PER_CLIENT_HEADER).writerow(
                     {
                         "round": server_round,
                         "cid": cid,
@@ -143,13 +152,19 @@ class DriftAwareStrategy(FedAvg):
                 )
 
         global_acc = (weighted_acc_sum / weighted_n_sum) if weighted_n_sum > 0 else 0.0
-        clients_sorted = sorted(self.clients_with_drift_last_round)
+
+        # Linha base de log por rodada
         row_global = {
-            "round": server_round,
-            "global_accuracy": global_acc,
-            "num_clients": len(results),
-            "clients_with_drift": ";".join(clients_sorted) if clients_sorted else "",
-            "drift_global": False,  # atualizado adiante, se Wilbik sinalizar
+            "round": int(server_round),
+            "global_accuracy": float(global_acc),
+            "num_clients": int(len(results)),
+            "global_drift_flag": 0,                    # será atualizado p/ Wilbik
+            "clients_with_drift": json.dumps(sorted(self.clients_with_drift_last_round)),  # locais
+            "delta_t": "",
+            "delta_0": "",
+            "band_lo": "",
+            "band_hi": "",
+            "phase": "INIT" if self._wf_state in {"init_centers", "init_delta0"} else "MONITOR",
             "label": self._scenario_label,
         }
 
@@ -158,20 +173,14 @@ class DriftAwareStrategy(FedAvg):
         if self._wf_enabled:
             eps = 1e-12
 
-            # Acumuladores possíveis
+            # Acumuladores
             init_snum = None  # lista np.array (K,D)
             init_sden = None  # lista float (K,)
 
-            # Exato (B/W)
-            B = None  # lista float (K,)
-            W = None  # lista float (K,)
-
-            # Fallback (SSE/W)
-            sse_fallback = None  # lista float (K,)
-            w_fallback = None    # lista float (K,)
-
-            # Sinalização auxiliar
-            use_exact_any = False
+            B = None          # lista float (K,)   (exato)
+            W = None          # lista float (K,)   (exato)
+            sse_fallback = None  # lista float (K,) (fallback)
+            w_fallback = None    # lista float (K,) (fallback)
 
             for _, evaluate_res in results:
                 m = evaluate_res.metrics
@@ -207,11 +216,9 @@ class DriftAwareStrategy(FedAvg):
 
                 # --- DELTA0/DELTA: DB fuzzy exato (B/W) ou fallback SSE/W ---
                 if self._wf_state in {"init_delta0", "delta"}:
-                    # tenta B/W (exato)
                     has_B = any(isinstance(k, str) and k.startswith("wf_B_") for k in m.keys())
                     has_W = any(isinstance(k, str) and k.startswith("wf_w_") for k in m.keys())
                     if has_B and has_W:
-                        use_exact_any = True
                         if B is None:
                             B = [0.0 for _ in range(self._wf_K)]
                         if W is None:
@@ -221,9 +228,7 @@ class DriftAwareStrategy(FedAvg):
                                 j = int(k.split("_")[2]); B[j] += float(v)
                             elif isinstance(k, str) and k.startswith("wf_w_"):
                                 j = int(k.split("_")[2]); W[j] += float(v)
-                        # A/N continuam opcionais (se quiser logá-los, adicione aqui)
                     else:
-                        # fallback
                         if sse_fallback is None:
                             sse_fallback = [0.0 for _ in range(self._wf_K)]
                             w_fallback = [0.0 for _ in range(self._wf_K)]
@@ -233,7 +238,7 @@ class DriftAwareStrategy(FedAvg):
                             elif isinstance(k, str) and k.startswith("wf_w_"):
                                 j = int(k.split("_")[2]); w_fallback[j] += float(v)
 
-            # ---- Atualiza estado ----
+            # ---- Atualiza estado e calcula deltas/banda ----
             if self._wf_state == "init_centers":
                 if init_snum is not None and init_sden is not None:
                     centers_new = []
@@ -242,7 +247,7 @@ class DriftAwareStrategy(FedAvg):
                         centers_new.append((init_snum[j] / den).tolist())
                     centers_new = np.array(centers_new, dtype=np.float64)
 
-                    # shift para critério de parada
+                    # shift p/ critério de parada
                     shift = None
                     if self._wf_centers is not None:
                         shift = float(np.max(np.linalg.norm(centers_new - self._wf_centers, axis=1)))
@@ -268,62 +273,76 @@ class DriftAwareStrategy(FedAvg):
                         "drift_global": False,
                     }
 
-            elif self._wf_state in {"init_delta0", "delta"}:
-                if self._wf_centers is not None:
-                    C = self._wf_centers
-                    # --- Preferir DB exato se B/W chegaram ---
-                    use_exact = (B is not None) and (W is not None) and (np.sum(W) > eps)
-                    if use_exact:
-                        B_arr = np.array(B, dtype=np.float64)                              # (K,)
-                        W_arr = np.array(W, dtype=np.float64)                              # (K,)
-                        S = B_arr / (W_arr + eps)                                          # (K,)  -> S_k^{(f)} = B_k / W_k
-                        M = np.linalg.norm(C[:, None, :] - C[None, :, :], axis=2) + eps    # (K,K)
-                        R = (S[:, None] + S[None, :]) / M
-                        np.fill_diagonal(R, -np.inf)
-                        delta_val = float(np.max(R, axis=1).mean())
-                    else:
-                        # fallback (aprox sse/w)
-                        scatters = np.array([(sse_fallback[j] / (w_fallback[j] + eps)) for j in range(self._wf_K)], dtype=np.float64)
-                        M = np.linalg.norm(C[:, None, :] - C[None, :, :], axis=2) + eps
-                        R = (scatters[:, None] + scatters[None, :]) / M
-                        np.fill_diagonal(R, -np.inf)
-                        delta_val = float(np.max(R, axis=1).mean())
+            elif self._wf_state in {"init_delta0", "delta"} and self._wf_centers is not None:
+                C = self._wf_centers
+                eps = 1e-12
+                # Preferir DB exato se B/W chegaram; senão, fallback SSE/W
+                if (B is not None) and (W is not None) and (np.sum(W) > eps):
+                    B_arr = np.array(B, dtype=np.float64)
+                    W_arr = np.array(W, dtype=np.float64)
+                    S = B_arr / (W_arr + eps)                                # S_k^{(f)} = B_k / W_k
+                    M = np.linalg.norm(C[:, None, :] - C[None, :, :], axis=2) + eps
+                    R = (S[:, None] + S[None, :]) / M
+                    np.fill_diagonal(R, -np.inf)
+                    delta_val = float(np.max(R, axis=1).mean())
+                    exact_db = True
+                else:
+                    scatters = np.array([(sse_fallback[j] / (w_fallback[j] + eps)) for j in range(self._wf_K)], dtype=np.float64)
+                    M = np.linalg.norm(C[:, None, :] - C[None, :, :], axis=2) + eps
+                    R = (scatters[:, None] + scatters[None, :]) / M
+                    np.fill_diagonal(R, -np.inf)
+                    delta_val = float(np.max(R, axis=1).mean())
+                    exact_db = False
 
-                    if self._wf_state == "init_delta0":
+                if self._wf_state == "init_delta0":
+                    self._wf_delta0 = delta_val
+                    self._wf_state = "delta"
+                    low = (1.0 - self._wf_delta_band) * self._wf_delta0
+                    high = (1.0 + self._wf_delta_band) * self._wf_delta0
+                    row_global.update({
+                        "delta_t": "",
+                        "delta_0": float(self._wf_delta0),
+                        "band_lo": float(low),
+                        "band_hi": float(high),
+                        "phase": "INIT",
+                    })
+                    wilbik_log = {
+                        "stage": "init_delta0",
+                        "K": self._wf_K, "m": self._wf_m, "D": self._wf_feature_dim,
+                        "delta0": self._wf_delta0, "delta_t": None,
+                        "band": [low, high], "drift_global": False,
+                        "exact_db": bool(exact_db),
+                    }
+                else:
+                    # state == "delta" (monitor)
+                    if self._wf_delta0 is None:
                         self._wf_delta0 = delta_val
-                        self._wf_state = "delta"
-                        low = (1.0 - self._wf_delta_band) * self._wf_delta0
-                        high = (1.0 + self._wf_delta_band) * self._wf_delta0
-                        wilbik_log = {
-                            "stage": "init_delta0",
-                            "K": self._wf_K, "m": self._wf_m, "D": self._wf_feature_dim,
-                            "delta0": self._wf_delta0, "delta_t": None,
-                            "band": [low, high], "drift_global": False,
-                            "exact_db": bool(use_exact),
-                        }
-                    else:
-                        # state == "delta"
-                        if self._wf_delta0 is None:
-                            self._wf_delta0 = delta_val
-                        low = (1.0 - self._wf_delta_band) * self._wf_delta0
-                        high = (1.0 + self._wf_delta_band) * self._wf_delta0
-                        drift_global = (delta_val < low) or (delta_val > high)
-                        if drift_global:
-                            row_global["clients_with_drift"] = "GLOBAL"
-                            row_global["drift_global"] = True
-                        wilbik_log = {
-                            "stage": "delta",
-                            "K": self._wf_K, "m": self._wf_m, "D": self._wf_feature_dim,
-                            "delta0": self._wf_delta0, "delta_t": delta_val,
-                            "band": [low, high], "drift_global": bool(drift_global),
-                            "exact_db": bool(use_exact),
-                        }
+                    low = (1.0 - self._wf_delta_band) * self._wf_delta0
+                    high = (1.0 + self._wf_delta_band) * self._wf_delta0
+                    drift_global = int((delta_val < low) or (delta_val > high))
+
+                    # Atualiza campos Wilbik no CSV (sem listar clientes!)
+                    row_global.update({
+                        "global_drift_flag": drift_global,
+                        "clients_with_drift": json.dumps([]),  # Wilbik: sempre lista vazia
+                        "delta_t": float(delta_val),
+                        "delta_0": float(self._wf_delta0),
+                        "band_lo": float(low),
+                        "band_hi": float(high),
+                        "phase": "MONITOR",
+                    })
+
+                    wilbik_log = {
+                        "stage": "delta",
+                        "K": self._wf_K, "m": self._wf_m, "D": self._wf_feature_dim,
+                        "delta0": self._wf_delta0, "delta_t": delta_val,
+                        "band": [low, high], "drift_global": bool(drift_global),
+                        "exact_db": bool(exact_db),
+                    }
 
         # --- Persistência ---
         with open(self._csv_path, "a", newline="") as f:
-            csv.DictWriter(
-                f, fieldnames=["round", "global_accuracy", "num_clients", "clients_with_drift", "drift_global", "label"]
-            ).writerow(row_global)
+            csv.DictWriter(f, fieldnames=ROUND_CSV_HEADER).writerow(row_global)
 
         json_obj = {"round": server_round, "label": self._scenario_label, "global": row_global}
         if self._wf_enabled and wilbik_log is not None:
@@ -334,10 +353,13 @@ class DriftAwareStrategy(FedAvg):
             f.write(json.dumps(json_obj) + "\n")
 
         print(
-            f"[SERVER] Round {server_round}: GlobalAcc={global_acc:.4f} | Drift clients = "
-            f"{row_global['clients_with_drift']} | DriftGlobal={row_global['drift_global']}"
+            f"[SERVER] Round {server_round}: GlobalAcc={global_acc:.4f} | "
+            f"global_drift_flag={row_global['global_drift_flag']} | "
+            f"clients_with_drift={row_global['clients_with_drift']}"
         )
         return super().aggregate_evaluate(server_round, results, failures)
+
+    # -------------------------- Fit / Pesos --------------------------
 
     def aggregate_fit(
         self,
@@ -345,12 +367,14 @@ class DriftAwareStrategy(FedAvg):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
     ) -> Optional[Parameters]:
-        # Salva pesos apenas dos clientes com drift (seu comportamento atual)
+        # Salva pesos apenas dos clientes com drift local na última rodada de avaliação
         for client_proxy, fit_res in results:
             cid = client_proxy.cid
             if cid in self.clients_with_drift_last_round:
                 save_client_weights(fit_res.parameters, cid, server_round)
         return super().aggregate_fit(server_round, results, failures)
+
+    # -------------------------- Envio de config p/ clientes --------------------------
 
     def configure_evaluate(self, server_round, parameters, client_manager):
         instructions = super().configure_evaluate(server_round, parameters, client_manager)
@@ -379,7 +403,6 @@ class DriftAwareStrategy(FedAvg):
                     cfg["wilbik_centers"] = json.dumps(self._wf_centers.tolist())
             else:
                 cfg["wilbik_stage"] = "delta"
-                # Só envia centros se existirem; do contrário, o guarda-corpo acima já nos levou a INIT
                 if self._wf_centers is not None:
                     cfg["wilbik_centers"] = json.dumps(self._wf_centers.tolist())
 
@@ -388,6 +411,8 @@ class DriftAwareStrategy(FedAvg):
 
         return new_instructions
 
+
+# -------------------------- ServerApp --------------------------
 
 def server_fn(context: Context):
     env_keys = [

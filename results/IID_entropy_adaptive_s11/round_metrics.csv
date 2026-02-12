@@ -1,0 +1,26 @@
+round,global_accuracy,num_clients,global_drift_flag,clients_with_drift,delta_t,delta_0,band_lo,band_hi,phase,label
+1,0.2184,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+2,0.3031,10,0,"[""1079929258956337"", ""11000964662897049327"", ""202268301637238963"", ""4196207126108036473"", ""9059162245263918356""]",,,,,MONITOR,IID_entropy_adaptive_s11
+3,0.3615,10,0,"[""11922945184607121012"", ""15716424563507951199"", ""7039761228958997261""]",,,,,MONITOR,IID_entropy_adaptive_s11
+4,0.4097,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+5,0.4343,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+6,0.4543,10,0,"[""11922945184607121012""]",,,,,MONITOR,IID_entropy_adaptive_s11
+7,0.4616,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+8,0.4792,10,0,"[""9059162245263918356""]",,,,,MONITOR,IID_entropy_adaptive_s11
+9,0.4983,10,0,"[""11000964662897049327"", ""7039761228958997261""]",,,,,MONITOR,IID_entropy_adaptive_s11
+10,0.5022,10,0,"[""11000964662897049327"", ""15716424563507951199"", ""7039761228958997261""]",,,,,MONITOR,IID_entropy_adaptive_s11
+11,0.5135,10,0,"[""1079929258956337"", ""4196207126108036473"", ""7039761228958997261""]",,,,,MONITOR,IID_entropy_adaptive_s11
+12,0.5233,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+13,0.5292,10,0,"[""15716424563507951199""]",,,,,MONITOR,IID_entropy_adaptive_s11
+14,0.537,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+15,0.5457,10,0,"[""1871856709139394813""]",,,,,MONITOR,IID_entropy_adaptive_s11
+16,0.5555,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+17,0.5597,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+18,0.5602,10,0,"[""11000964662897049327""]",,,,,MONITOR,IID_entropy_adaptive_s11
+19,0.5657,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+20,0.5708,10,0,"[""15716424563507951199""]",,,,,MONITOR,IID_entropy_adaptive_s11
+21,0.5792,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+22,0.5799,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+23,0.5828,10,0,"[""7039761228958997261""]",,,,,MONITOR,IID_entropy_adaptive_s11
+24,0.5862,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
+25,0.5899,10,0,[],,,,,MONITOR,IID_entropy_adaptive_s11
